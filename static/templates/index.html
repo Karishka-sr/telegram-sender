@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Послать в Telegram</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+</head>
+<body>
+    <div class="wrapper">
+        <header class="header">
+            <div class="logo">✈️</div>
+            <div class="title">Сообщение в Telegram</div>
+            <div id="status" class="status"></div>
+        </header>
+
+        <main class="card">
+            {% if not configured %}
+            <div class="result show err" style="margin:0 0 16px">
+                Бот ещё не подключён.
+                <a class="apk-link" href="/setup">Настроить за минуту →</a>
+            </div>
+            {% endif %}
+
+            <form id="sendForm" novalidate>
+                <div class="field">
+                    <textarea
+                        id="text"
+                        name="text"
+                        maxlength="4096"
+                        rows="6"
+                        placeholder="Введите текст сообщения…"
+                        autofocus
+                        required
+                    ></textarea>
+                    <div class="counter"><span id="count">0</span> / 4096</div>
+                </div>
+
+                <button type="submit" id="sendBtn" class="btn">
+                    <span class="btn-ico">➤</span>
+                    <span class="btn-label">Отправить</span>
+                </button>
+            </form>
+
+            <div id="result" class="result" role="status" aria-live="polite"></div>
+        </main>
+
+        <footer class="footer">
+            Сообщение уходит в личный чат вашего Telegram-бота
+            <br>
+            <a class="apk-link" id="apkLink" href="/downloads/TelegramSender.apk">📱 Скачать Android-приложение (.apk)</a>
+        </footer>
+    </div>
+
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Доступ закрыт</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="wrapper">
+        <header class="header">
+            <div class="logo">🔒</div>
+            <div class="title">Доступ закрыт</div>
+        </header>
+
+        <main class="card">
+            <div class="result show err">
+                Бот уже настроен, поэтому страница настройки защищена ключом.
+            </div>
+            <p class="hint">Откройте страницу с ключом доступа:</p>
+            <input class="input" readonly value="/setup?key={{ admin_key }}">
+            <p class="hint">Скопируйте адрес и добавьте его к адресу сайта.</p>
+            <p class="hint center">
+                <a class="apk-link" href="/">← К отправке сообщений</a>
+            </p>
+        </main>
+    </div>
+</body>
+</html>

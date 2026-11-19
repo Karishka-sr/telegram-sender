@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройка бота</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="wrapper">
+        <header class="header">
+            <div class="logo">⚙️</div>
+            <div class="title">Настройка бота</div>
+            {% if configured %}
+            <div class="status ok">Подключён</div>
+            {% else %}
+            <div class="status bad">Не настроен</div>
+            {% endif %}
+        </header>
+
+        <main class="card">
+            {% if saved and probe_ok %}
+            <div class="result show ok">✓ Готово! Проверочное сообщение отправлено в Telegram.
+                <a class="apk-link" href="/">Открыть приложение →</a>
+            </div>
+            {% elif saved and token_saved %}
+            <div class="result show ok">✓ {{ probe_error }}</div>
+            {% elif saved %}
+            <div class="result show err">Настройки сохранены, но проверка не прошла: {{ probe_error }}</div>
+            {% endif %}
+            {% if error %}
+            <div class="result show err">{{ error }}</div>
+            {% endif %}
+
+            <form method="post" action="/setup">
+                <input type="hidden" name="key" value="{{ key }}">
+
+                <label class="label" for="token">1. Токен бота</label>
+                <p class="hint">
+                    В Telegram откройте <b>@BotFather</b> → <code>/newbot</code> → придумайте имя.
+                    Он пришлёт токен вида <code>123456789:AAH...</code> — вставьте его сюда.
+                </p>
+                <input class="input" id="token" name="token" type="text"
+                       placeholder="123456789:AAH..."
+                       value="{% if has_token %}********{% endif %}" autocomplete="off">
+
+                <label class="label" for="chat">2. Chat ID получателя</label>
+                <p class="hint">
+                    Напишите своему боту любое сообщение (нажмите «Start»), затем нажмите
+                    кнопку ниже — ID подставится сам. Если не сработало, узнайте ID через
+                    <b>@userinfobot</b> и введите вручную.
+                </p>
+                <div class="row">
+                    <input class="input" id="chat" name="chat" type="text"
+                           placeholder="123456789" value="{{ chat_id }}" autocomplete="off">
+                    <button class="btn ghost" type="button" id="detectBtn">Найти ID</button>
+                </div>
+                <div id="detectResult" class="result"></div>
+
+                <button class="btn" type="submit">
+                    <span class="btn-label">Сохранить и проверить</span>
+                </button>
+            </form>
+
+            <p class="hint center">
+                <a class="apk-link" href="/">← Вернуться к отправке сообщений</a>
+            </p>
+        </main>
+    </div>
+
+    <script>
+        const detectBtn = document.getElementById("detectBtn");
+        const detectResult = document.getElementById("detectResult");
+        const chatInput = document.getElementById("chat");
+
+        function show(ok, text) {
+            detectResult.textContent = text;
+            detectResult.className = "result show " + (ok ? "ok" : "err");
+        }
+
+        detectBtn.addEventListener("click", async () => {
+            detectBtn.disabled = true;
+            detectBtn.textContent = "Ищу…";
+            try {
+                const resp = await fetch("/api/setup/detect-chat", { method: "POST" });
+                const data = await resp.json();
+                if (resp.ok) {
+                    chatInput.value = data.chat_id;
+                    show(true, "Нашёл: " + data.name + " (ID " + data.chat_id + "). Нажмите «Сохранить».");
+                } else {
+                    show(false, data.detail || "Не удалось найти chat_id");
+                }
+            } catch (e) {
+                show(false, "Нет связи с сервером");
+            } finally {
+                detectBtn.disabled = false;
+                detectBtn.textContent = "Найти ID";
+            }
+        });
+    </script>
+</body>
+</html>

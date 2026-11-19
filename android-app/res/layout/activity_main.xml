@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#1E1F29">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp"
+        android:paddingTop="32dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✈️"
+            android:textSize="40sp"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Сообщение в Telegram"
+            android:textColor="#ECEFF7"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:paddingBottom="20dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Адрес сервера"
+            android:textColor="#9AA0B4"
+            android:textSize="13sp"
+            android:paddingBottom="6dp" />
+
+        <EditText
+            android:id="@+id/serverUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_input"
+            android:hint="https://example.com/api/messages"
+            android:inputType="textUri"
+            android:maxLines="1"
+            android:padding="12dp"
+            android:textColor="#ECEFF7"
+            android:textColorHint="#9AA0B4"
+            android:textSize="14sp"
+            android:layout_marginBottom="18dp"
+            android:importantForAutofill="no" />
+
+        <EditText
+            android:id="@+id/inputText"
+            android:layout_width="match_parent"
+            android:layout_height="160dp"
+            android:background="@drawable/bg_input"
+            android:gravity="top|start"
+            android:hint="Введите текст сообщения…"
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLength="4096"
+            android:padding="14dp"
+            android:textColor="#ECEFF7"
+            android:textColorHint="#9AA0B4"
+            android:textSize="16sp"
+            android:importantForAutofill="no" />
+
+        <TextView
+            android:id="@+id/countText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:text="0 / 4096"
+            android:textColor="#9AA0B4"
+            android:textSize="12sp"
+            android:paddingTop="6dp" />
+
+        <Button
+            android:id="@+id/sendButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/bg_button"
+            android:text="Отправить"
+            android:textColor="#06202E"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:stateListAnimator="@null"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp" />
+
+        <ProgressBar
+            android:id="@+id/progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:indeterminate="true"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/resultText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:padding="12dp"
+            android:textSize="15sp"
+            android:visibility="gone" />
+    </LinearLayout>
+</ScrollView>

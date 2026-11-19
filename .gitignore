@@ -1,0 +1,18 @@
+# секреты и артефакты сборки
+backend/.env
+.env
+*.jks
+*.keystore
+data/
+backend.log
+backend.pid
+
+# собранное
+android-app/build/
+android-app/*.idsig
+android-app/*.apk
+
+# python
+__pycache__/
+.pytest_cache/
+*.pyc

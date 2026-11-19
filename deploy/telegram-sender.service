@@ -1,0 +1,24 @@
+# systemd-юнит для постоянного сервера на своём VPS.
+#   sudo cp deploy/telegram-sender.service /etc/systemd/system/
+#   sudo systemctl enable --now telegram-sender
+[Unit]
+Description=Telegram Sender (FastAPI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telegram
+WorkingDirectory=/opt/telegram-sender/backend
+Environment=CONFIG_PATH=/opt/telegram-sender/backend/.env
+ExecStart=/opt/telegram-sender/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=3
+# бот работает с личным чатом, ему хватает минимальных прав
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/telegram-sender/backend
+
+[Install]
+WantedBy=multi-user.target
