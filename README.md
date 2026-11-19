@@ -79,8 +79,19 @@ window.APP_CONFIG = {
 После переезда сервера на новый домен пересоберите страницу:
 
 ```bash
-python3 scripts/build_site.py --api-base https://ваш-домен --apk-url https://.../TelegramSender.apk
+python3 scripts/build_site.py --api-base https://ваш-домен --apk-url downloads/TelegramSender.apk
 ```
+
+Сборка кладёт APK в `docs/downloads/`, поэтому кнопка скачивания работает прямо
+с сайта и не зависит от доступности Releases.
+
+#### Сайт без своего сервера
+
+Страница умеет отправлять сообщения сама, без бэкенда: в блоке
+«Отправлять без своего сервера» введите токен бота и свой `chat_id`. Браузер
+ходит напрямую в `api.telegram.org` (Telegram отдаёт CORS-заголовки), токен
+хранится только в `localStorage` этого браузера. Режим удобен, когда сервер
+недоступен: домен `*.prod-runtime.all-hands.dev` живёт только пока открыта сессия.
 
 ### 4. APK
 

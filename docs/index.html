@@ -39,6 +39,28 @@
             </form>
 
             <div id="result" class="result" role="status" aria-live="polite"></div>
+
+            <details class="direct" id="directBox">
+                <summary>Отправлять без своего сервера</summary>
+                <p class="hint">
+                    Если сервер недоступен, браузер может отправить сообщение в Telegram сам.
+                    Вставьте токен бота и свой chat_id — они сохранятся только в этом браузере
+                    и никуда не отправляются, кроме api.telegram.org.
+                </p>
+                <div class="field">
+                    <input class="input" type="password" id="tokenInput"
+                           placeholder="Токен бота от @BotFather" autocomplete="off">
+                </div>
+                <div class="field">
+                    <input class="input" type="text" id="chatInput"
+                           placeholder="chat_id, например 123456789" autocomplete="off">
+                </div>
+                <div class="row">
+                    <button type="button" id="saveDirect" class="btn">Сохранить</button>
+                    <button type="button" id="clearDirect" class="btn ghost">Забыть</button>
+                </div>
+                <div id="directState" class="hint"></div>
+            </details>
         </main>
 
         <footer class="footer">
