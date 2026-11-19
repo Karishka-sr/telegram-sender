@@ -77,3 +77,25 @@ python3 scripts/build_site.py --api-base https://...  # пересборка doc
 на `127.0.0.1:12001` — это уже другой origin относительно бэкенда на 12000.
 Адрес бэкенда можно переопределить без пересборки: `<сайт>/?api=https://домен`,
 значение запоминается в localStorage.
+
+## GitHub Pages (репозиторий Karishka-sr/telegram-sender)
+
+- Сайт: https://karishka-sr.github.io/telegram-sender/ , источник — `main` / `docs`.
+- APK лежит и в Release, и в самом `docs/downloads/` — кнопка скачивания относительная
+  и работает даже если Releases недоступны.
+- `build_site.py` пересоздаёт `docs/` целиком, поэтому APK копируется внутри скрипта
+  (`APK_SRC`). Если положить файл в `docs/` руками, следующая сборка его снести.
+- Пуш обычным `git push origin main` даёт 403: remote без credentials. Рабочий способ —
+  `git push "https://x-access-token:$GH_PAT@github.com/...git" main`, после пуша
+  обновить `origin/main` через `git fetch` + `git update-ref`, иначе локальный
+  remote-ref отстаёт и `git status` врёт про расхождение.
+
+## Режим без бэкенда
+
+Домен `*.prod-runtime.all-hands.dev` живёт только пока открыта сессия песочницы, поэтому
+сайт умеет слать сообщения сам. В блоке «Отправлять без своего сервера» вводятся токен
+бота и chat_id, они лежат в `localStorage` (`tgDirect`) и уходят прямо в
+`api.telegram.org`. Это возможно потому, что Bot API отдаёт
+`access-control-allow-origin: *` — проверено preflight-запросом и реальным ответом
+`Unauthorized` на заведомо неверный токен. При прямом режиме `/api/health` не
+запрашивается, статус в шапке — «Прямое подключение».
