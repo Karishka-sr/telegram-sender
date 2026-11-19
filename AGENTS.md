@@ -47,3 +47,33 @@ cd android-app && javac -d /tmp/jvmtest \
 - Публичные ссылки вида `https://work-N-*.prod-runtime.all-hands.dev` живут только
   пока живёт сессия. После перезапуска ссылки в `index.html`, `downloads/README.txt`
   и `DEFAULT_URL` надо обновить.
+
+## Публикация
+
+Репозиторий: `Karishka-sr/telegram-sender`. Ветка `main`, сайт — из каталога `/docs`
+(GitHub Pages), APK — ассет релиза.
+
+```bash
+./scripts/publish.sh                                  # пуш + релиз + включение Pages
+python3 scripts/build_site.py --api-base https://...  # пересборка docs/ под новый домен
+```
+
+Токен OpenHands (`ghu_...`, GitHub App) **не может создавать репозитории** —
+`POST /user/repos` отвечает 403 «Resource not accessible by integration». Пуш,
+релизы и настройка Pages этим токеном работают, если репозиторий уже существует.
+
+## Постоянный сервер
+
+- `deploy/serve.sh` — цикл с автоперезапуском для быстрого запуска.
+- `deploy/telegram-sender.service` — systemd-юнит для VPS.
+- `Dockerfile` + `docker-compose.yml` — `restart: unless-stopped`, конфиг на volume
+  (`CONFIG_PATH=/data/.env`). Проверено: контейнер поднимается после SIGKILL процесса.
+- `.github/workflows/docker.yml` — образ в GHCR при пуше в `main` или теге.
+
+## Проверка сайта с другого origin
+
+Страница на Pages обращается к бэкенду через CORS (`allow_origins=["*"]`). Проверять
+локально так: `python3 -m http.server 12001 --directory docs` и смотреть страницу
+на `127.0.0.1:12001` — это уже другой origin относительно бэкенда на 12000.
+Адрес бэкенда можно переопределить без пересборки: `<сайт>/?api=https://домен`,
+значение запоминается в localStorage.
