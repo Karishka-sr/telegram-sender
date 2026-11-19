@@ -16,6 +16,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES = os.path.join(ROOT, "static", "templates")
 STATIC = os.path.join(ROOT, "static")
+APK_SRC = os.path.join(ROOT, "downloads", "TelegramSender.apk")
 
 CONFIG_JS = """// Сгенерировано scripts/build_site.py — правьте через повторную сборку.
 window.APP_CONFIG = {
@@ -54,6 +55,11 @@ def build(out_dir: str, api_base: str, apk_url: str) -> None:
 
     # без этого Jekyll выбрасывает файлы, начинающиеся с подчёркивания
     open(os.path.join(out_dir, ".nojekyll"), "w").close()
+
+    # APK кладём рядом со страницей: ссылка остаётся относительной и не зависит от Releases
+    if os.path.exists(APK_SRC):
+        os.makedirs(os.path.join(out_dir, "downloads"), exist_ok=True)
+        shutil.copy(APK_SRC, os.path.join(out_dir, "downloads"))
 
 
 def main() -> None:
