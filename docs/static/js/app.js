@@ -9,7 +9,26 @@
     const status = document.getElementById("status");
     const MAX = 4096;
     const cfg = window.APP_CONFIG || {};
-    const API = String(cfg.apiBase || "").replace(/\/+$/, "");
+
+    // Адрес бэкенда можно переопределить без пересборки страницы: ?api=https://...
+    // Значение запоминается, поэтому хватает один раз открыть ссылку с параметром.
+    function resolveApiBase() {
+        const params = new URLSearchParams(location.search);
+        const fromUrl = params.get("api");
+        if (fromUrl) {
+            try {
+                localStorage.setItem("apiBase", fromUrl);
+            } catch (e) { /* приватный режим */ }
+            return fromUrl;
+        }
+        try {
+            return localStorage.getItem("apiBase") || cfg.apiBase || "";
+        } catch (e) {
+            return cfg.apiBase || "";
+        }
+    }
+
+    const API = String(resolveApiBase()).replace(/\/+$/, "");
 
     const apkLink = document.getElementById("apkLink");
     if (apkLink && cfg.apkUrl) {
