@@ -16,3 +16,10 @@ android-app/*.apk
 __pycache__/
 .pytest_cache/
 *.pyc
+
+# админский APK локальный, в GitHub не публикуется
+downloads/TelegramAdmin.apk
+admin-android/*.apk
+admin-android/build/
+admin-android/keystore.jks
+downloads/telegram-sender-main.bundle
