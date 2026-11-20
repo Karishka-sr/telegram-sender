@@ -64,8 +64,25 @@ docker run -d --restart unless-stopped -p 8080:8080 \
   ghcr.io/karishka-sr/telegram-sender:latest
 ```
 
-### 3. Сайт
+### 3. Сервер без своего железа (Cloudflare Workers)
 
+Постоянный адрес без VPS и без карты: `https://<имя>.<аккаунт>.workers.dev`.
+Код в `worker/`, инструкция — `worker/README.md`. Кратко:
+
+```bash
+cd worker
+npx wrangler@3 login
+npx wrangler@3 secret put TELEGRAM_BOT_TOKEN
+npx wrangler@3 secret put TELEGRAM_CHAT_ID
+npx wrangler@3 deploy
+```
+
+Либо через GitHub Actions: добавить секреты `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ACCOUNT_ID`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` и запустить
+workflow «Deploy Worker». Адрес для приложения —
+`https://<имя>.<аккаунт>.workers.dev/api/messages`.
+
+### 4. Сайт
 Сайт — статика в `docs/`, её отдаёт GitHub Pages. Бэкенд и Pages живут раздельно,
 поэтому адрес сервера прописан в `docs/static/js/config.js`:
 
@@ -93,7 +110,7 @@ python3 scripts/build_site.py --api-base https://ваш-домен --apk-url dow
 хранится только в `localStorage` этого браузера. Режим удобен, когда сервер
 недоступен: домен `*.prod-runtime.all-hands.dev` живёт только пока открыта сессия.
 
-### 4. APK
+### 5. APK
 
 ```bash
 cd android-app && ./build.sh
