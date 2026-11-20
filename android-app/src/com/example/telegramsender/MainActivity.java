@@ -1,18 +1,26 @@
 package com.example.telegramsender;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * Отправляет сообщение на наш сервер, который пересылает его в Telegram.
@@ -26,6 +34,8 @@ public class MainActivity extends Activity implements TextWatcher {
     private static final String DEFAULT_URL =
             "https://work-1-ynewfpoqwqjmmtze.prod-runtime.all-hands.dev/api/messages";
     private static final int MAX_LEN = 4096;
+    private static final int MAX_FILE = 20 * 1024 * 1024;
+    private static final int REQ_PICK_FILE = 1001;
 
     private final TelegramClient client = new TelegramClient();
 
@@ -35,6 +45,11 @@ public class MainActivity extends Activity implements TextWatcher {
     private ProgressBar progress;
     private TextView resultText;
     private TextView countText;
+    private TextView fileInfo;
+
+    private Uri pickedUri;
+    private String pickedName;
+    private boolean fileReadFailed;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +62,7 @@ public class MainActivity extends Activity implements TextWatcher {
         progress = findViewById(R.id.progress);
         resultText = findViewById(R.id.resultText);
         countText = findViewById(R.id.countText);
+        fileInfo = findViewById(R.id.fileInfo);
 
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         serverInput.setText(prefs.getString(KEY_URL, DEFAULT_URL));
@@ -55,6 +71,117 @@ public class MainActivity extends Activity implements TextWatcher {
         updateCounter();
 
         sendButton.setOnClickListener(v -> sendMessage());
+
+        setupToolbar();
+    }
+
+    private void setupToolbar() {
+        LinearLayout toolbar = findViewById(R.id.toolbar);
+        if (toolbar == null) {
+            return;
+        }
+        addTool(toolbar, R.id.btnBold, "[b]", "[/b]");
+        addTool(toolbar, R.id.btnItalic, "[i]", "[/i]");
+        addTool(toolbar, R.id.btnUnderline, "[u]", "[/u]");
+        addTool(toolbar, R.id.btnStrike, "[s]", "[/s]");
+        addTool(toolbar, R.id.btnCode, "[code]", "[/code]");
+        addTool(toolbar, R.id.btnSpoiler, "[spoiler]", "[/spoiler]");
+        findViewById(R.id.btnFile).setOnClickListener(v -> pickFile());
+    }
+
+    private void addTool(LinearLayout toolbar, int id, String open, String close) {
+        Button b = toolbar.findViewById(id);
+        if (b != null) {
+            b.setOnClickListener(v -> wrapSelection(open, close));
+        }
+    }
+
+    /** Оборачивает выделенный текст в BB-теги. */
+    private void wrapSelection(String open, String close) {
+        int start = inputText.getSelectionStart();
+        int end = inputText.getSelectionEnd();
+        Editable editable = inputText.getText();
+        if (editable == null) {
+            return;
+        }
+        // перестраховка: если курсор не на месте, выделяем всё
+        if (start < 0 || end < start) {
+            start = 0;
+            end = editable.length();
+        }
+        String selected = start == end ? "текст" : editable.subSequence(start, end).toString();
+        editable.replace(start, end, open + selected + close);
+        inputText.setSelection(start + open.length(), start + open.length() + selected.length());
+        updateCounter();
+    }
+
+    private void pickFile() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        try {
+            startActivityForResult(intent, REQ_PICK_FILE);
+        } catch (Exception e) {
+            showToast("Не удалось открыть окно выбора файла");
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_PICK_FILE && resultCode == RESULT_OK && data != null) {
+            pickedUri = data.getData();
+            pickedName = resolveFileName(pickedUri);
+            fileReadFailed = false;
+            fileInfo.setText("Файл: " + pickedName);
+            fileInfo.setVisibility(TextView.VISIBLE);
+        }
+    }
+
+    private String resolveFileName(Uri uri) {
+        try (android.database.Cursor c = getContentResolver().query(
+                uri, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) {
+                    String name = c.getString(idx);
+                    if (name != null && !name.isEmpty()) {
+                        return name;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        String name = uri.getLastPathSegment();
+        return name == null ? "файл" : name;
+    }
+
+    private byte[] readPickedFile() {
+        if (pickedUri == null) {
+            return null;
+        }
+        InputStream in;
+        try {
+            in = new BufferedInputStream(getContentResolver().openInputStream(pickedUri));
+        } catch (Exception e) {
+            return null;
+        }
+        try (InputStream stream = in) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int read;
+            long total = 0;
+            while ((read = stream.read(buf)) != -1) {
+                total += read;
+                if (total > MAX_FILE) {
+                    return null;
+                }
+                out.write(buf, 0, read);
+            }
+            return out.toByteArray();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override
@@ -88,9 +215,10 @@ public class MainActivity extends Activity implements TextWatcher {
     }
 
     private void sendMessage() {
-        String text = inputText.getText() == null ? "" : inputText.getText().toString().trim();
-        if (text.isEmpty()) {
-            showToast("Напишите сообщение");
+        final String text = inputText.getText() == null ? "" : inputText.getText().toString().trim();
+
+        if (text.isEmpty() && pickedUri == null) {
+            showToast("Напишите сообщение или выберите файл");
             return;
         }
         if (text.length() > MAX_LEN) {
@@ -105,31 +233,54 @@ public class MainActivity extends Activity implements TextWatcher {
         resultText.setVisibility(TextView.GONE);
 
         new Thread(() -> {
-            TelegramClient.Result result = client.send(url, text);
-
-            String message;
-            if (result.ok) {
-                message = "✓ Сообщение доставлено в Telegram";
-            } else if (result.code == -1) {
-                message = "Нет связи с сервером. Проверьте адрес и интернет.";
+            TelegramClient.Result result;
+            if (pickedUri != null) {
+                byte[] data = readPickedFile();
+                if (data == null) {
+                    runOnUiThread(() -> {
+                        sendButton.setEnabled(true);
+                        progress.setVisibility(ProgressBar.GONE);
+                        showResult("Не удалось прочитать файл (макс. 20 МБ)", "#FF5C6C");
+                    });
+                    return;
+                }
+                result = client.sendDocument(url, pickedName, data, text);
             } else {
-                message = result.detail.isEmpty()
-                        ? "Ошибка сервера (" + result.code + ")"
-                        : result.detail;
+                result = client.send(url, text);
             }
 
-            final boolean ok = result.ok;
-            final String finalMessage = message;
+            final TelegramClient.Result fResult = result;
             runOnUiThread(() -> {
                 sendButton.setEnabled(true);
                 progress.setVisibility(ProgressBar.GONE);
-                showResult(finalMessage, ok ? "#37D67A" : "#FF5C6C");
-                if (ok) {
+                if (fResult.ok) {
+                    showResult(pickedUri != null
+                            ? "✓ Файл доставлен в Telegram"
+                            : "✓ Сообщение доставлено в Telegram", "#37D67A");
                     inputText.setText("");
                     updateCounter();
+                    clearFile();
+                } else {
+                    String message;
+                    if (fResult.code == -1) {
+                        message = "Нет связи с сервером. Проверьте адрес и интернет.";
+                    } else {
+                        message = fResult.detail.isEmpty()
+                                ? "Ошибка сервера (" + fResult.code + ")"
+                                : fResult.detail;
+                    }
+                    showResult(message, "#FF5C6C");
+                    fileReadFailed = true;
                 }
             });
         }).start();
+    }
+
+    private void clearFile() {
+        pickedUri = null;
+        pickedName = null;
+        fileReadFailed = false;
+        fileInfo.setVisibility(View.GONE);
     }
 
     private void showResult(String text, String colorHex) {

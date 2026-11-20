@@ -38,6 +38,8 @@ public class TelegramClientTest {
             testPayloadSurvivesServer(url);
             testErrorDetailIsShown(url);
             testNetworkFailureIsReported();
+            testMultipartHasTextAndFile();
+            testMultipartFilenameSanitized();
         } finally {
             server.stop(0);
         }
@@ -109,6 +111,28 @@ public class TelegramClientTest {
                 new TelegramClient().send("http://127.0.0.1:1/api/messages", "тест");
         check("нет сети -> не ok", !result.ok);
         check("нет сети -> code -1", result.code == -1);
+    }
+
+    private static void testMultipartHasTextAndFile() throws Exception {
+        byte[] binary = "FILE_DATA".getBytes(StandardCharsets.UTF_8);
+        byte[] body = TelegramClient.buildMultipart(
+                "TESTBOUND", "doc.txt", binary, "подпись [b]жирная[/b]");
+
+        String text = new String(body, StandardCharsets.UTF_8);
+        check("multipart содержит подпись", text.contains("подпись"));
+        check("multipart не экранирует BB (строкой)", text.contains("[b]жирная[/b]"));
+        check("multipart содержит имя файла", text.contains("filename=\"doc.txt\""));
+        check("multipart содержит бинарные данные", text.contains("FILE_DATA"));
+        check("multipart закрыт терминатором",
+                text.trim().endsWith("--TESTBOUND--"));
+    }
+
+    private static void testMultipartFilenameSanitized() throws Exception {
+        byte[] body = TelegramClient.buildMultipart("B", "a\"b\\c.txt",
+                "x".getBytes(StandardCharsets.UTF_8), "");
+        String text = new String(body, StandardCharsets.UTF_8);
+        check("опасные символы убраны из имени",
+                text.contains("filename=\"abc.txt\""));
     }
 
     private static void check(String name, boolean condition) {

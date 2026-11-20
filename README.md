@@ -140,8 +140,20 @@ apksigner), нужен JDK 21 и Android SDK с build-tools 34. Адрес се�
 
 ```
 GET  /api/health     → {"status": "ok", "telegram_configured": true}
-POST /api/messages   → {"text": "привет"}  →  {"status": "sent", "length": 6}
+
+POST /api/messages   → {"text": "привет", "format": "bb"}
+                     → {"status": "sent", "length": 6}
+
+POST /api/messages   (multipart/form-data)
+       text=подпись, file=@документ.pdf
+                     → {"status": "sent", "type": "document", "filename": "документ.pdf"}
 ```
+
+`format` — `bb` (по умолчанию), `auto` или `html`. В `bb` поддерживаются
+`[b]`, `[i]`, `[u]`, `[s]`, `[code]`, `[pre]`, `[spoiler]`, `[link=url]…[/link]`.
+Любой другой текст, включая `<script>`, экранируется — сообщение не ломается.
+
+Файлы уходят в Telegram как документы (до 20 МБ), текст становится подписью.
 
 CORS открыт: страница на GitHub Pages обращается к бэкенду с другого origin.
 

@@ -32,6 +32,18 @@
                     <div class="counter"><span id="count">0</span> / 4096</div>
                 </div>
 
+                <div class="toolbar" id="toolbar">
+                    <button type="button" class="tool" data-pair="b">Б</button>
+                    <button type="button" class="tool" data-pair="i">Курсив</button>
+                    <button type="button" class="tool" data-pair="u">Подчёркнутый</button>
+                    <button type="button" class="tool" data-pair="s">Зачёркнутый</button>
+                    <button type="button" class="tool" data-pair="code">&lt;&gt; код</button>
+                    <button type="button" class="tool" data-pair="spoiler">Спойлер</button>
+                    <button type="button" class="tool" id="fileBtn">📎 Файл</button>
+                </div>
+                <div class="hint" id="fileInfo" hidden></div>
+                <input type="file" id="file" hidden>
+
                 <button type="submit" id="sendBtn" class="btn">
                     <span class="btn-ico">➤</span>
                     <span class="btn-label">Отправить</span>

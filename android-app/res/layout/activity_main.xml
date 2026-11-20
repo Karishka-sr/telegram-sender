@@ -66,6 +66,60 @@
             android:textSize="16sp"
             android:importantForAutofill="no" />
 
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/toolbar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnBold"
+                    style="@style/ToolButton"
+                    android:text="Б" />
+                <Button
+                    android:id="@+id/btnItalic"
+                    style="@style/ToolButton"
+                    android:text="Курсив" />
+                <Button
+                    android:id="@+id/btnUnderline"
+                    style="@style/ToolButton"
+                    android:text="Подчёрк" />
+                <Button
+                    android:id="@+id/btnStrike"
+                    style="@style/ToolButton"
+                    android:text="Зачёрк" />
+                <Button
+                    android:id="@+id/btnCode"
+                    style="@style/ToolButton"
+                    android:text="&lt;&gt; код" />
+                <Button
+                    android:id="@+id/btnSpoiler"
+                    style="@style/ToolButton"
+                    android:text="Спойлер" />
+                <Button
+                    android:id="@+id/btnFile"
+                    style="@style/ToolButton"
+                    android:text="📎 Файл" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <TextView
+            android:id="@+id/fileInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="middle"
+            android:maxLines="1"
+            android:textColor="#9AA0B4"
+            android:textSize="12sp"
+            android:paddingTop="6dp"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/countText"
             android:layout_width="match_parent"

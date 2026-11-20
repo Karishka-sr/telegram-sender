@@ -16,11 +16,46 @@ RECEIVED = []
 TELEGRAM_STATUS = 200
 
 
+def parse_multipart(body: bytes, boundary):
+    """Минимальный разбор multipart для тестового фейка."""
+    delimiter = b"--" + boundary.encode()
+    fields = {}
+    for chunk in body.split(delimiter):
+        chunk = chunk.strip(b"\r\n")
+        if not chunk or chunk == b"--":
+            continue
+        head, _, data = chunk.partition(b"\r\n\r\n")
+        headers = head.decode("latin-1", "replace")
+        if 'name="' not in headers:
+            continue
+        name = headers.split('name="', 1)[1].split('"', 1)[0]
+        if 'filename="' in headers:
+            fields[name] = {
+                "filename": headers.split('filename="', 1)[1].split('"', 1)[0],
+                "data": data.rstrip(b"\r\n"),
+            }
+        else:
+            fields[name] = data.rstrip(b"\r\n").decode("utf-8", "replace")
+    return fields
+
+
 class FakeTelegram(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         length = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(length) or b"{}")
-        RECEIVED.append({"path": self.path, "body": body})
+        raw = self.rfile.read(length) or b"{}"
+        content_type = self.headers.get("Content-Type", "")
+        entry = {"path": self.path, "body": {}, "files": {}}
+        if "multipart/form-data" in content_type:
+            boundary = content_type.split("boundary=", 1)[1].strip('"')
+            fields = parse_multipart(raw, boundary)
+            for key, value in fields.items():
+                if isinstance(value, dict):
+                    entry["files"][key] = value
+                else:
+                    entry["body"][key] = value
+        else:
+            entry["body"] = json.loads(raw or b"{}")
+        RECEIVED.append(entry)
 
         payload = {"ok": TELEGRAM_STATUS == 200}
         if TELEGRAM_STATUS != 200:
@@ -172,3 +207,75 @@ def test_special_chars_like_markdown_are_safe(client):
 
     assert resp.status_code == 200
     assert text in RECEIVED[0]["body"]["text"]
+
+
+def test_bb_markup_reaches_telegram(client):
+    resp = client.post("/api/messages", json={
+        "text": "Привет [b]мир[/b], [i]курсив[/i], [spoiler]тайна[/spoiler]",
+        "format": "bb",
+    })
+    assert resp.status_code == 200
+    body = RECEIVED[0]["body"]["text"]
+    assert "<b>мир</b>" in body
+    assert "<i>курсив</i>" in body
+    assert "<tg-spoiler>тайна</tg-spoiler>" in body
+    assert "Сообщение из приложения" in body
+
+
+def test_bb_injections_are_escaped(client):
+    """BB с несуществующими тегами и голый HTML не должны ломать сообщение."""
+    text = "[nope]x[/nope] <script>alert(1)</script> & привет"
+    resp = client.post("/api/messages", json={"text": text})
+    assert resp.status_code == 200
+    body = RECEIVED[0]["body"]["text"]
+    assert "&lt;script&gt;" in body
+    assert "<script>" not in body
+    assert "[nope]x[/nope]" in body
+
+
+def test_unsupported_format_rejected(client):
+    resp = client.post("/api/messages", json={"text": "тест", "format": "nope"})
+    assert resp.status_code == 502
+    assert "Неизвестный формат" in resp.json()["detail"]
+
+
+def test_file_upload_reaches_telegram(client):
+    content = b"file-bytes-123"
+    resp = client.post(
+        "/api/messages",
+        files={"file": ("doc.txt", content, "text/plain")},
+        data={"text": "описание [b]файла[/b]"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "sent"
+    assert len(RECEIVED) == 1
+
+    sent = RECEIVED[0]
+    assert sent["path"] == "/bot123456:TESTTOKEN/sendDocument"
+    assert sent["files"]["document"]["filename"] == "doc.txt"
+    assert sent["files"]["document"]["data"] == content
+    assert sent["body"]["chat_id"] == "42"
+    assert "описание" in sent["body"]["caption"]
+    assert "<b>файла</b>" in sent["body"]["caption"]
+
+
+def test_file_without_caption(client):
+    content = b"just-a-file"
+    resp = client.post(
+        "/api/messages",
+        files={"file": ("a.bin", content, "application/octet-stream")},
+    )
+    assert resp.status_code == 200
+    sent = RECEIVED[0]
+    assert sent["files"]["document"]["data"] == content
+    assert "caption" not in sent["body"]
+
+
+def test_broken_json_rejected(client):
+    resp = client.post(
+        "/api/messages",
+        content="not-json",
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 400
+    assert RECEIVED == []

@@ -1,19 +1,21 @@
 import html
 import os
+import re
 import secrets
+import urllib.parse
 
 import httpx
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # в контейнере конфиг выносят на volume, чтобы он переживал пересоздание
 CONFIG_PATH = os.environ.get("CONFIG_PATH") or os.path.join(BASE_DIR, ".env")
 MAX_MESSAGE_LEN = 4096
+MAX_FILE_BYTES = 20 * 1024 * 1024
 
 CONFIG = {}
 
@@ -74,11 +76,84 @@ app.add_middleware(
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "..", "static", "templates"))
 
 
-def send_to_telegram(text: str) -> tuple[bool, str]:
-    # Markdown ломается на символах _ * [ ` в тексте пользователя, поэтому HTML + escape
+ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "tg-spoiler", "a"}
+BB_PAIRS = [
+    ("[b]", "<b>"), ("[/b]", "</b>"),
+    ("[i]", "<i>"), ("[/i]", "</i>"),
+    ("[u]", "<u>"), ("[/u]", "</u>"),
+    ("[s]", "<s>"), ("[/s]", "</s>"),
+    ("[code]", "<code>"), ("[/code]", "</code>"),
+    ("[pre]", "<pre>"), ("[/pre]", "</pre>"),
+    ("[spoiler]", "<tg-spoiler>"), ("[/spoiler]", "</tg-spoiler>"),
+]
+
+
+def render_text(text: str, fmt: str = "bb") -> tuple[str, str]:
+    """Конвертирует текст в безопасный HTML для parse_mode=HTML.
+
+    Возвращает (html, ошибка). Форматы: bb ([b]…[/b], [i]…, [spoiler]…,
+    [link=url]…[/link]), auto (похоже на BB-разметку) и html (заведомо чистый).
+    """
+    fmt = fmt or "bb"
+    if fmt not in ("bb", "auto", "html"):
+        return "", "Неизвестный формат: %s" % fmt
+    if fmt == "html":
+        return sanitize_html(text), ""
+    converted = text
+    for bb, tag in BB_PAIRS:
+        converted = converted.replace(bb, tag)
+    converted = re.sub(
+        r"\[link=([^\]]+)\]",
+        lambda m: '<a href="%s">' % urllib.parse.quote(m.group(1), safe="/:?&=+@%"),
+        converted,
+    )
+    converted = converted.replace("[link]", '<a href="">').replace("[/link]", "</a>")
+    return sanitize_html(converted), ""
+
+
+def sanitize_html(text: str) -> str:
+    """Оставляет только разрешённые теги, остальное экранирует.
+
+    Неразрешённый тег (например, [nope]) не отбрасывается вместе с текстом:
+    угловые скобки экранируются, а содержимое сохраняется.
+    """
+    out: list[str] = []
+    pos = 0
+    for match in re.finditer(r"</?([a-zA-Z][a-zA-Z0-9-]*)([^>]*)>", text):
+        tag = match.group(1).lower()
+        raw = match.group(0)
+        # не важно, разрешён тег или нет: открывающая скобка всегда сохраняется
+        out.append(html.escape(text[pos:match.start()], quote=False))
+        if tag in ALLOWED_TAGS:
+            if tag == "a":
+                href = re.search(r'href="([^"]*)"', match.group(2))
+                addr = ""
+                if href:
+                    target = href.group(1)
+                    if target.startswith(("http://", "https://", "tg://")):
+                        addr = target
+                out.append('<a href="%s">' % addr if addr else "<a>")
+            else:
+                out.append(raw)
+        else:
+            out.append(html.escape(raw, quote=False))
+        pos = match.end()
+    out.append(html.escape(text[pos:], quote=False))
+    return "".join(out)
+
+
+def wrapped_text(text: str) -> str:
+    """Заголовок + текст пользователя (для обычных сообщений)."""
+    return f"<b>📩 Сообщение из приложения:</b>\n{text}"
+
+
+def send_to_telegram(text: str, fmt: str = "bb") -> tuple[bool, str]:
+    html_text, err = render_text(text, fmt)
+    if err:
+        return False, err
     payload = {
         "chat_id": chat_id(),
-        "text": f"<b>📩 Сообщение из приложения:</b>\n{html.escape(text, quote=False)}",
+        "text": wrapped_text(html_text),
         "parse_mode": "HTML",
     }
     try:
@@ -99,8 +174,40 @@ def send_to_telegram(text: str) -> tuple[bool, str]:
     return False, description or f"Telegram ответил ошибкой {resp.status_code}"
 
 
-class MessageIn(BaseModel):
-    text: str
+def send_document_to_telegram(
+    filename: str,
+    binary: bytes,
+    size: int,
+    content_type: str,
+    caption: str = "",
+) -> tuple[bool, str]:
+    """Отправляет файл в Telegram через multipart (httpx это умеет сам)."""
+    if size > MAX_FILE_BYTES:
+        return False, f"Файл больше 20 МБ"
+    caption_html, err = render_text(caption)
+    if err:
+        return False, err
+    data = {"chat_id": chat_id()}
+    if caption_html.strip():
+        data.update({"caption": caption_html, "parse_mode": "HTML"})
+    files = {"document": (filename, binary, content_type or "application/octet-stream")}
+    try:
+        with httpx.Client(timeout=120) as client:
+            resp = client.post(
+                f"{telegram_api()}/bot{bot_token()}/sendDocument",
+                data=data,
+                files=files,
+            )
+    except httpx.HTTPError:
+        return False, "нет связи с Telegram"
+
+    if resp.status_code == 200:
+        return True, ""
+    try:
+        description = resp.json().get("description", "")
+    except ValueError:
+        description = ""
+    return False, description or f"Telegram ответил ошибкой {resp.status_code}"
 
 
 @app.get("/")
@@ -171,9 +278,44 @@ def setup_detect_chat():
     )
 
 
-@app.post("/api/messages")
-async def send_message(msg: MessageIn):
-    text = msg.text.strip() if msg.text else ""
+@app.post("/api/messages", response_model=None)
+async def send_message(
+    request: Request,
+    text: str | None = Form(None, alias="text"),
+    format: str | None = Form("bb", alias="format"),
+    file: UploadFile | None = File(None),
+):
+    """Принимает JSON {text, format} или multipart (text, format, file)."""
+    fmt = format or "bb"
+    if file is None and text is None:
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Ожидается JSON с полем text")
+        text = body.get("text", "") if isinstance(body, dict) else ""
+        fmt = body.get("format", "bb") if isinstance(body, dict) else "bb"
+
+    text = text.strip() if isinstance(text, str) else ""
+
+    if not telegram_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Бот не настроен: укажите токен и chat_id на странице /setup",
+        )
+
+    if file is not None:
+        binary = await file.read()
+        if len(binary) > MAX_FILE_BYTES:
+            raise HTTPException(status_code=400, detail="Файл больше 20 МБ")
+        if not text and not binary:
+            raise HTTPException(status_code=400, detail="Сообщение пустое")
+        ok, error = send_document_to_telegram(
+            file.filename or "файл", binary, len(binary), file.content_type or "", text
+        )
+        if not ok:
+            raise HTTPException(status_code=502, detail=f"Telegram не принял файл: {error}")
+        return {"status": "sent", "type": "document", "filename": file.filename}
+
     if not text:
         raise HTTPException(status_code=400, detail="Сообщение пустое")
     if len(text) > MAX_MESSAGE_LEN:
@@ -181,13 +323,8 @@ async def send_message(msg: MessageIn):
             status_code=400,
             detail=f"Сообщение слишком длинное (макс. {MAX_MESSAGE_LEN} символов)",
         )
-    if not telegram_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Бот не настроен: укажите токен и chat_id на странице /setup",
-        )
 
-    ok, error = send_to_telegram(text)
+    ok, error = send_to_telegram(text, fmt)
     if not ok:
         raise HTTPException(status_code=502, detail=f"Telegram не принял сообщение: {error}")
 

@@ -1,6 +1,7 @@
 package com.example.telegramsender;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -87,6 +88,72 @@ public final class TelegramClient {
                 conn.disconnect();
             }
         }
+    }
+
+    /** Отправка файла (multipart/form-data) вместе с подписью-текстом. */
+    public Result sendDocument(String url, String filename, byte[] binary, String caption) {
+        HttpURLConnection conn = null;
+        try {
+            String boundary = "----TelegramSender" + Long.toHexString(System.nanoTime());
+            byte[] body = buildMultipart(boundary, filename, binary, caption);
+
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(30000);
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty(
+                    "Content-Type", "multipart/form-data; boundary=" + boundary);
+            conn.setFixedLengthStreamingMode(body.length);
+            conn.setDoOutput(true);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(body);
+            }
+
+            int code = conn.getResponseCode();
+            if (code == 200) {
+                return new Result(true, code, "");
+            }
+            return new Result(false, code, extractDetail(readAll(conn.getErrorStream())));
+        } catch (Exception e) {
+            return new Result(false, -1, e.getClass().getSimpleName());
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    public static byte[] buildMultipart(String boundary, String filename, byte[] binary, String caption)
+            throws IOException {
+        byte[] boundaryBytes = boundary.getBytes(StandardCharsets.UTF_8);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        write(out, "--"); write(out, boundaryBytes); write(out, "\r\n");
+        write(out, "Content-Disposition: form-data; name=\"text\"\r\n\r\n");
+        write(out, caption == null ? "" : caption);
+        write(out, "\r\n");
+        write(out, "--"); write(out, boundaryBytes); write(out, "\r\n");
+        write(out, "Content-Disposition: form-data; name=\"file\"; filename=\""
+                + sanitizeFilename(filename) + "\"\r\n");
+        write(out, "Content-Type: application/octet-stream\r\n\r\n");
+        out.write(binary);
+        write(out, "\r\n--"); write(out, boundaryBytes); write(out, "--\r\n");
+        return out.toByteArray();
+    }
+
+    private static void write(ByteArrayOutputStream out, String s) throws IOException {
+        out.write(s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void write(ByteArrayOutputStream out, byte[] b) throws IOException {
+        out.write(b, 0, b.length);
+    }
+
+    private static String sanitizeFilename(String name) {
+        if (name == null || name.isEmpty()) {
+            return "file";
+        }
+        return name.replace("\"", "").replace("\\", "").trim();
     }
 
     /** Достаёт поле "detail" из тела ошибки, не подключая org.json. */
